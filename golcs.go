@@ -15,6 +15,8 @@ type Lcs interface {
 	ValuesContext(ctx context.Context) (values []interface{}, err error)
 	// IndexPairs calculates paris of indices which have the same value in LCS.
 	IndexPairs() (pairs []IndexPair)
+	// IndexPairs calculates paris of indices which have the same value in LCS.
+	IndexPairsWithCmp(cmp Cmp) (pairs []IndexPair)
 	// IndexPairsContext is a context aware version of IndexPairs()
 	IndexPairsContext(ctx context.Context) (pairs []IndexPair, err error)
 	// Length calculates the length of the LCS.
@@ -33,13 +35,16 @@ type IndexPair struct {
 	Right int
 }
 
+type Cmp func(x, y interface{}) bool
+
 type lcs struct {
 	left  []interface{}
 	right []interface{}
 	/* for caching */
-	table      [][]int
+	table      *[][]int
 	indexPairs []IndexPair
 	values     []interface{}
+	cmp        Cmp
 }
 
 // New creates a new LCS calculator from two arrays.
@@ -61,8 +66,15 @@ func (lcs *lcs) Table() (table [][]int) {
 
 // Table implements Lcs.TableContext()
 func (lcs *lcs) TableContext(ctx context.Context) (table [][]int, err error) {
+	var cmp Cmp
+	if lcs.cmp != nil {
+		cmp = lcs.cmp
+	} else {
+		cmp = reflect.DeepEqual
+	}
+
 	if lcs.table != nil {
-		return lcs.table, nil
+		return *lcs.table, nil
 	}
 
 	sizeX := len(lcs.left) + 1
@@ -73,7 +85,7 @@ func (lcs *lcs) TableContext(ctx context.Context) (table [][]int, err error) {
 		table[x] = make([]int, sizeY)
 	}
 
-	for y := 1; y < sizeY; y++ {
+	/*for y := 1; y < sizeY; y++ {
 		select { // check in each y to save some time
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -82,14 +94,33 @@ func (lcs *lcs) TableContext(ctx context.Context) (table [][]int, err error) {
 		}
 		for x := 1; x < sizeX; x++ {
 			increment := 0
-			if reflect.DeepEqual(lcs.left[x-1], lcs.right[y-1]) {
+			//log.Printf("%v %v\n", lcs.left[x-1], lcs.right[y-1])
+			if cmp(lcs.left[x-1], lcs.right[y-1]) {
 				increment = 1
 			}
+			//log.Printf("%d\n", increment)
+			table[x][y] = max(table[x-1][y-1]+increment, table[x-1][y], table[x][y-1])
+		}
+	}*/
+	for x := 1; x < sizeX; x++ {
+		/*select { // check in each y to save some time
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			// nop
+		}*/
+		for y := 1; y < sizeY; y++ {
+			increment := 0
+			//log.Printf("%v %v\n", lcs.left[x-1], lcs.right[y-1])
+			if cmp(lcs.left[x-1], lcs.right[y-1]) {
+				increment = 1
+			}
+			//log.Printf("%d\n", increment)
 			table[x][y] = max(table[x-1][y-1]+increment, table[x-1][y], table[x][y-1])
 		}
 	}
 
-	lcs.table = table
+	lcs.table = &table
 	return table, nil
 }
 
@@ -116,6 +147,13 @@ func (lcs *lcs) IndexPairs() (pairs []IndexPair) {
 
 // Table implements Lcs.IndexPairsContext()
 func (lcs *lcs) IndexPairsContext(ctx context.Context) (pairs []IndexPair, err error) {
+	var cmp Cmp
+	if lcs.cmp != nil {
+		cmp = lcs.cmp
+	} else {
+		cmp = reflect.DeepEqual
+	}
+
 	if lcs.indexPairs != nil {
 		return lcs.indexPairs, nil
 	}
@@ -128,7 +166,8 @@ func (lcs *lcs) IndexPairsContext(ctx context.Context) (pairs []IndexPair, err e
 	pairs = make([]IndexPair, table[len(table)-1][len(table[0])-1])
 
 	for x, y := len(lcs.left), len(lcs.right); x > 0 && y > 0; {
-		if reflect.DeepEqual(lcs.left[x-1], lcs.right[y-1]) {
+		//if reflect.DeepEqual(lcs.left[x-1], lcs.right[y-1]) {
+		if cmp(lcs.left[x-1], lcs.right[y-1]) {
 			pairs[table[x][y]-1] = IndexPair{Left: x - 1, Right: y - 1}
 			x--
 			y--
@@ -192,4 +231,9 @@ func max(first int, rest ...int) (max int) {
 		}
 	}
 	return
+}
+
+func (lcs *lcs) IndexPairsWithCmp(cmp Cmp) (pairs []IndexPair) {
+	lcs.cmp = cmp
+	return lcs.IndexPairs()
 }
