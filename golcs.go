@@ -85,37 +85,18 @@ func (lcs *lcs) TableContext(ctx context.Context) (table [][]int, err error) {
 		table[x] = make([]int, sizeY)
 	}
 
-	/*for y := 1; y < sizeY; y++ {
+	for x := 1; x < sizeX; x++ {
 		select { // check in each y to save some time
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			// nop
 		}
-		for x := 1; x < sizeX; x++ {
-			increment := 0
-			//log.Printf("%v %v\n", lcs.left[x-1], lcs.right[y-1])
-			if cmp(lcs.left[x-1], lcs.right[y-1]) {
-				increment = 1
-			}
-			//log.Printf("%d\n", increment)
-			table[x][y] = max(table[x-1][y-1]+increment, table[x-1][y], table[x][y-1])
-		}
-	}*/
-	for x := 1; x < sizeX; x++ {
-		/*select { // check in each y to save some time
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			// nop
-		}*/
 		for y := 1; y < sizeY; y++ {
 			increment := 0
-			//log.Printf("%v %v\n", lcs.left[x-1], lcs.right[y-1])
 			if cmp(lcs.left[x-1], lcs.right[y-1]) {
 				increment = 1
 			}
-			//log.Printf("%d\n", increment)
 			table[x][y] = max(table[x-1][y-1]+increment, table[x-1][y], table[x][y-1])
 		}
 	}
@@ -166,7 +147,6 @@ func (lcs *lcs) IndexPairsContext(ctx context.Context) (pairs []IndexPair, err e
 	pairs = make([]IndexPair, table[len(table)-1][len(table[0])-1])
 
 	for x, y := len(lcs.left), len(lcs.right); x > 0 && y > 0; {
-		//if reflect.DeepEqual(lcs.left[x-1], lcs.right[y-1]) {
 		if cmp(lcs.left[x-1], lcs.right[y-1]) {
 			pairs[table[x][y]-1] = IndexPair{Left: x - 1, Right: y - 1}
 			x--
